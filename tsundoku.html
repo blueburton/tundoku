@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="積読棚">
+<meta name="theme-color" content="#0d0d0d">
+<title>積読棚</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0f14;
+  --surface: #121920;
+  --border: rgba(255,255,255,0.08);
+  --text: #e4eef6;
+  --muted: rgba(180,210,230,0.4);
+  --accent: #4db8e8;
+  --unread: #4db8e8;
+  --reading: #4dd4a0;
+  --done: #a78bfa;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+body {
+  font-family: 'Noto Sans JP', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+  overflow-x: hidden;
+}
+
+/* ── HEADER ── */
+header {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--bg);
+  padding: max(env(safe-area-inset-top), 16px) 20px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+
+.logo {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--text);
+}
+.logo em { display: none; }
+
+.add-btn {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: none; border: 1px solid var(--border);
+  color: var(--text); font-size: 20px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: border-color 0.15s, background 0.15s;
+}
+.add-btn:active { background: rgba(255,255,255,0.06); border-color: var(--accent); }
+
+/* ── FILTER TABS ── */
+.filter-row {
+  display: flex; gap: 0;
+  padding: 12px 20px 0;
+  position: relative; z-index: 1;
+}
+.filter-btn {
+  flex: 1; padding: 8px 4px;
+  background: none; border: none; border-bottom: 1px solid var(--border);
+  color: var(--muted); font-family: 'Noto Sans JP', sans-serif;
+  font-size: 11px; letter-spacing: 0.06em; cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+}
+.filter-btn .count {
+  font-size: 16px; font-weight: 600; color: var(--muted); transition: color 0.2s;
+}
+.filter-btn.active { color: var(--text); border-bottom-color: var(--accent); }
+.filter-btn.active .count { color: var(--text); }
+
+/* ── SEARCH ── */
+.search-wrap {
+  padding: 14px 20px 0;
+  position: relative; z-index: 1;
+}
+.search-wrap input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px 10px 36px;
+  color: var(--text); font-family: 'Noto Sans JP', sans-serif; font-size: 14px;
+  outline: none; transition: border-color 0.2s;
+}
+.search-wrap input:focus { border-color: rgba(77,184,232,0.5); }
+.search-wrap input::placeholder { color: var(--muted); }
+.search-icon {
+  position: absolute; left: 33px; top: 50%; transform: translateY(-50%);
+  font-size: 14px; color: var(--muted); pointer-events: none;
+}
+
+/* ── SHELF CONTAINER ── */
+.shelf-container { padding: 20px 0 100px; }
+
+/* ── SHELF ── */
+.shelf-wrap { margin-bottom: 32px; }
+
+.books-row {
+  display: flex; align-items: flex-end; gap: 4px;
+  padding: 0 20px;
+  min-height: 120px;
+  overflow-x: auto; scrollbar-width: none;
+}
+.books-row::-webkit-scrollbar { display: none; }
+
+/* Shelf line — single clean rule */
+.shelf-line {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(200,169,110,0.25) 15%, rgba(200,169,110,0.25) 85%, transparent);
+  margin: 0 20px;
+  box-shadow: 0 1px 8px rgba(200,169,110,0.06);
+}
+
+/* ── BOOK SPINE ── */
+.book {
+  flex-shrink: 0;
+  border-radius: 2px 3px 3px 2px;
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: bottom center;
+  position: relative;
+  box-shadow: -2px 0 6px rgba(0,0,0,0.5), inset -1px 0 0 rgba(0,0,0,0.3), inset 1px 0 0 rgba(255,255,255,0.08);
+}
+.book:active { transform: translateY(-10px) scale(1.04); }
+
+.book-inner {
+  width: 100%; height: 100%;
+  border-radius: inherit;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: flex-start;
+  padding: 9px 4px 18px; overflow: hidden;
+}
+
+.book-title-spine {
+  writing-mode: vertical-rl;
+  font-size: 10px; font-weight: 400;
+  letter-spacing: 0.1em; line-height: 1;
+  max-height: 90%; overflow: hidden;
+  color: rgba(255,255,255,0.82);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.book-status-mark {
+  position: absolute; bottom: 8px;
+  width: 8px; height: 8px; border-radius: 50%;
+}
+
+/* ── EMPTY ── */
+.empty-state {
+  text-align: center; padding: 56px 40px;
+  color: var(--muted); font-size: 13px; line-height: 2;
+}
+.empty-state .icon { font-size: 36px; margin-bottom: 12px; opacity: 0.3; display: block; }
+
+/* ── LIST VIEW ── */
+.list-item {
+  display: flex; gap: 14px; align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer; transition: background 0.12s;
+}
+.list-item:active { background: var(--surface); }
+.list-thumb {
+  width: 32px; height: 46px; flex-shrink: 0;
+  border-radius: 2px 3px 3px 2px;
+  box-shadow: -2px 2px 6px rgba(0,0,0,0.5);
+}
+.list-info { flex: 1; min-width: 0; }
+.list-title { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
+.list-author { font-size: 12px; color: var(--muted); }
+.list-meta { display: flex; gap: 8px; margin-top: 6px; align-items: center; }
+.status-pill {
+  font-size: 10px; letter-spacing: 0.06em;
+  padding: 2px 8px; border-radius: 10px;
+  border: 1px solid currentColor;
+}
+.list-arrow { color: var(--muted); font-size: 16px; }
+
+/* ── STATS VIEW ── */
+.stats-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  padding: 16px 20px 0;
+}
+.stat-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px; text-align: center;
+}
+.stat-num { font-size: 30px; font-weight: 600; font-family: 'Noto Sans JP', sans-serif; }
+.stat-label { font-size: 10px; letter-spacing: 0.06em; color: var(--muted); margin-top: 2px; }
+.progress-wrap {
+  margin: 16px 20px 0;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px;
+}
+.progress-label { font-size: 11px; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 10px; }
+.progress-bar-bg { background: rgba(255,255,255,0.07); border-radius: 4px; height: 6px; overflow: hidden; }
+.progress-bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--reading), var(--done)); transition: width 0.6s; }
+.progress-pct { text-align: right; font-size: 13px; color: var(--done); margin-top: 6px; }
+.genre-wrap {
+  margin: 10px 20px 0;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px;
+}
+
+/* ── BOTTOM NAV ── */
+nav {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+  background: rgba(10,15,20,0.96); border-top: 1px solid var(--border);
+  display: flex; padding-bottom: env(safe-area-inset-bottom, 0);
+  backdrop-filter: blur(16px);
+}
+.nav-btn {
+  flex: 1; background: none; border: none;
+  color: var(--muted); padding: 12px 0;
+  font-size: 10px; letter-spacing: 0.06em; cursor: pointer;
+  font-family: 'Noto Sans JP', sans-serif;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  transition: color 0.15s;
+}
+.nav-btn .icon { font-size: 19px; }
+.nav-btn.active { color: var(--accent); }
+
+/* ── MODAL ── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.7); backdrop-filter: blur(6px);
+  display: flex; align-items: flex-end;
+  opacity: 0; pointer-events: none; transition: opacity 0.22s;
+}
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+
+.modal {
+  width: 100%;
+  background: #0c1218;
+  border-top: 1px solid var(--border);
+  border-radius: 18px 18px 0 0;
+  padding: 16px 20px calc(env(safe-area-inset-bottom) + 20px);
+  transform: translateY(100%);
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  max-height: 92vh; overflow-y: auto;
+}
+.modal-overlay.open .modal { transform: translateY(0); }
+
+.drag-handle {
+  width: 36px; height: 3px; border-radius: 2px;
+  background: rgba(255,255,255,0.15); margin: 0 auto 18px;
+}
+
+.modal-heading {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 16px; font-weight: 700; letter-spacing: 0.06em;
+  color: var(--accent); margin-bottom: 18px;
+}
+
+.form-field { margin-bottom: 14px; }
+.field-label {
+  display: block; font-size: 10px; letter-spacing: 0.1em;
+  color: var(--muted); margin-bottom: 5px;
+}
+.field-input, .field-textarea, .field-select {
+  width: 100%; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 11px 13px; color: var(--text);
+  font-family: 'Noto Sans JP', sans-serif; font-size: 15px;
+  outline: none; transition: border-color 0.2s;
+}
+.field-input:focus, .field-textarea:focus, .field-select:focus { border-color: rgba(77,184,232,0.5); }
+.field-textarea { min-height: 72px; resize: vertical; line-height: 1.65; }
+.field-select option { background: #0c1218; }
+
+/* ISBN row */
+.isbn-row { display: flex; gap: 8px; margin-bottom: 14px; }
+.isbn-row .field-input { flex: 1; }
+.isbn-fetch {
+  background: none; border: 1px solid rgba(77,184,232,0.4);
+  border-radius: 8px; padding: 0 13px;
+  color: var(--accent); font-family: 'Noto Sans JP', sans-serif; font-size: 12px;
+  cursor: pointer; white-space: nowrap; transition: background 0.15s;
+}
+.isbn-fetch:active { background: rgba(77,184,232,0.1); }
+
+/* Status picker */
+.status-row { display: flex; gap: 6px; }
+.s-btn {
+  flex: 1; padding: 9px 4px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--muted);
+  font-family: 'Noto Sans JP', sans-serif; font-size: 11px;
+  letter-spacing: 0.04em; cursor: pointer; transition: all 0.15s;
+  text-align: center;
+}
+.s-btn.sel-unread  { border-color: var(--unread);  color: var(--unread);  background: rgba(77,184,232,0.1); }
+.s-btn.sel-reading { border-color: var(--reading); color: var(--reading); background: rgba(77,212,160,0.1); }
+.s-btn.sel-done    { border-color: var(--done);    color: var(--done);    background: rgba(167,139,250,0.1); }
+
+/* Color swatches */
+.swatch-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.swatch {
+  width: 28px; height: 28px; border-radius: 5px;
+  cursor: pointer; border: 2px solid transparent;
+  transition: transform 0.12s, border-color 0.12s;
+}
+.swatch.sel { border-color: rgba(255,255,255,0.7); transform: scale(1.18); }
+
+/* Tags */
+.tag-row { display: flex; gap: 8px; }
+.tag-row .field-input { flex: 1; }
+.tag-add {
+  background: none; border: 1px solid var(--border); border-radius: 8px;
+  padding: 0 13px; color: var(--text); font-size: 18px;
+  cursor: pointer; transition: border-color 0.15s;
+}
+.tag-add:active { border-color: var(--accent); }
+.tags-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tag-chip {
+  display: flex; align-items: center; gap: 4px;
+  background: rgba(77,184,232,0.1); border: 1px solid rgba(77,184,232,0.25);
+  border-radius: 20px; padding: 3px 10px;
+  font-size: 12px; color: var(--accent);
+}
+.tag-chip button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 0; line-height: 1; }
+
+/* Save button */
+.save-btn {
+  width: 100%; margin-top: 8px;
+  background: var(--accent); border: none; border-radius: 10px;
+  padding: 14px; color: #0a0f14;
+  font-family: 'Noto Sans JP', sans-serif; font-size: 15px; font-weight: 700;
+  letter-spacing: 0.08em; cursor: pointer;
+  transition: opacity 0.15s;
+}
+.save-btn:active { opacity: 0.8; }
+
+/* ── DETAIL ── */
+.detail-book-cover {
+  width: 72px; height: 104px; border-radius: 3px 6px 6px 3px;
+  margin: 0 auto 14px; display: flex; align-items: center; justify-content: center;
+  box-shadow: -4px 4px 20px rgba(0,0,0,0.7), 4px 0 8px rgba(255,255,255,0.04);
+  position: relative; overflow: hidden;
+}
+.detail-book-cover::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+  width: 5px; background: rgba(0,0,0,0.35);
+}
+.detail-cover-text { font-size: 10px; text-align: center; padding: 0 10px; line-height: 1.5; color: rgba(255,255,255,0.8); word-break: break-all; font-family: 'Noto Sans JP', sans-serif; }
+.detail-title { font-family: 'Noto Sans JP', sans-serif; font-size: 18px; font-weight: 700; text-align: center; margin-bottom: 4px; line-height: 1.5; }
+.detail-author { text-align: center; font-size: 12px; color: var(--muted); margin-bottom: 14px; }
+.detail-status {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  width: fit-content; margin: 0 auto 14px;
+  border: 1px solid currentColor; border-radius: 20px; padding: 4px 14px;
+  font-size: 12px; letter-spacing: 0.04em;
+}
+.detail-section {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 13px; margin-bottom: 10px;
+}
+.detail-section-label { font-size: 10px; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 6px; }
+.detail-section-content { font-size: 14px; line-height: 1.75; }
+.detail-btn-row { display: flex; gap: 8px; margin-top: 4px; }
+.detail-btn {
+  flex: 1; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 9px; padding: 11px; color: var(--text);
+  font-family: 'Noto Sans JP', sans-serif; font-size: 12px; letter-spacing: 0.04em;
+  cursor: pointer; text-align: center; transition: background 0.12s;
+}
+.detail-btn:active { background: rgba(255,255,255,0.08); }
+.detail-btn.danger { color: #f87171; border-color: rgba(248,113,113,0.2); }
+.status-change-row { display: flex; gap: 6px; margin-top: 8px; }
+
+/* Animations */
+@keyframes up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+.book { animation: up 0.25s ease both; }
+
+/* ── BACKUP ── */
+.backup-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px; margin-bottom: 12px;
+}
+.backup-card-title {
+  font-family: 'Noto Sans JP', sans-serif; font-size: 14px; font-weight: 700;
+  letter-spacing: 0.04em; margin-bottom: 6px; color: var(--text);
+}
+.backup-card-desc {
+  font-size: 12px; color: var(--muted); line-height: 1.8; margin-bottom: 12px;
+}
+.backup-btn {
+  display: block; width: 100%; padding: 12px;
+  border-radius: 9px; font-family: 'Noto Sans JP', sans-serif;
+  font-size: 13px; letter-spacing: 0.04em; text-align: center;
+  cursor: pointer; transition: opacity 0.15s;
+}
+.backup-btn:active { opacity: 0.75; }
+.export-btn {
+  background: var(--accent); border: none; color: #0a0f14; font-weight: 700;
+}
+.import-btn {
+  background: none; border: 1px solid var(--border); color: var(--text);
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">TSUNDOKU</div>
+  <button class="add-btn" onclick="openAdd()">＋</button>
+</header>
+
+<div class="filter-row">
+  <button class="filter-btn active" data-f="all" onclick="setFilter('all')">
+    <span class="count" id="cAll">0</span>すべて
+  </button>
+  <button class="filter-btn" data-f="unread" onclick="setFilter('unread')">
+    <span class="count" id="cUnread" style="color:var(--unread)">0</span>積読中
+  </button>
+  <button class="filter-btn" data-f="reading" onclick="setFilter('reading')">
+    <span class="count" id="cReading" style="color:var(--reading)">0</span>読書中
+  </button>
+  <button class="filter-btn" data-f="done" onclick="setFilter('done')">
+    <span class="count" id="cDone" style="color:var(--done)">0</span>読了
+  </button>
+</div>
+
+<div class="search-wrap">
+  <span class="search-icon">🔍</span>
+  <input type="text" id="searchInput" placeholder="タイトル・著者で検索" oninput="render()">
+</div>
+
+<div class="shelf-container" id="shelfContainer"></div>
+
+<nav>
+  <button class="nav-btn active" onclick="setView('shelf')"><span class="icon">📚</span>本棚</button>
+  <button class="nav-btn" onclick="setView('list')"><span class="icon">☰</span>リスト</button>
+  <button class="nav-btn" onclick="setView('stats')"><span class="icon">◎</span>統計</button>
+  <button class="nav-btn" onclick="openBackup()"><span class="icon">🗂</span>バックアップ</button>
+</nav>
+
+<!-- ADD/EDIT MODAL -->
+<div class="modal-overlay" id="addModal" onclick="if(event.target.id==='addModal')closeAdd()">
+  <div class="modal">
+    <div class="drag-handle"></div>
+    <div class="modal-heading" id="addTitle">本を追加</div>
+
+    <div class="isbn-row">
+      <input type="text" class="field-input" id="isbnIn" placeholder="ISBN または Amazon URL">
+      <button class="isbn-fetch" onclick="fetchISBN()">取得</button>
+    </div>
+
+    <div class="form-field">
+      <label class="field-label">タイトル *</label>
+      <input type="text" class="field-input" id="fTitle" placeholder="本のタイトル">
+    </div>
+    <div class="form-field">
+      <label class="field-label">著者</label>
+      <input type="text" class="field-input" id="fAuthor" placeholder="著者名">
+    </div>
+    <div class="form-field">
+      <label class="field-label">ジャンル</label>
+      <select class="field-select" id="fGenre">
+        <option value="">未選択</option>
+        <option>小説・文学</option><option>ビジネス</option><option>自己啓発</option>
+        <option>歴史・哲学</option><option>サイエンス</option><option>技術・IT</option>
+        <option>デザイン・アート</option><option>その他</option>
+      </select>
+    </div>
+    <div class="form-field">
+      <label class="field-label">ステータス</label>
+      <div class="status-row">
+        <button class="s-btn sel-unread" data-s="unread" onclick="setSt('unread')">積読中</button>
+        <button class="s-btn" data-s="reading" onclick="setSt('reading')">読書中</button>
+        <button class="s-btn" data-s="done" onclick="setSt('done')">読了</button>
+      </div>
+    </div>
+    <div class="form-field">
+      <label class="field-label">背表紙の色</label>
+      <div class="swatch-row" id="swatches"></div>
+    </div>
+    <div class="form-field">
+      <label class="field-label">タグ</label>
+      <div class="tag-row">
+        <input type="text" class="field-input" id="tagIn" placeholder="タグを追加" onkeydown="if(event.key==='Enter')addTag()">
+        <button class="tag-add" onclick="addTag()">＋</button>
+      </div>
+      <div class="tags-list" id="tagsList"></div>
+    </div>
+    <div class="form-field">
+      <label class="field-label">メモ・感想</label>
+      <textarea class="field-textarea" id="fMemo" placeholder="読んだ感想や気になった点など"></textarea>
+    </div>
+    <button class="save-btn" id="saveBtn" onclick="save()">本棚に追加する</button>
+  </div>
+</div>
+
+<!-- BACKUP MODAL -->
+<div class="modal-overlay" id="backupModal" onclick="if(event.target.id==='backupModal')closeBackup()">
+  <div class="modal">
+    <div class="drag-handle"></div>
+    <div class="modal-heading">バックアップ</div>
+
+    <div class="backup-card">
+      <div class="backup-card-title">エクスポート</div>
+      <div class="backup-card-desc">登録した本のデータをJSONファイルとして保存します。キャッシュクリア前や機種変更前に行うことをおすすめします。</div>
+      <button class="backup-btn export-btn" onclick="exportData()">📥 JSONファイルをダウンロード</button>
+    </div>
+
+    <div class="backup-card">
+      <div class="backup-card-title">インポート</div>
+      <div class="backup-card-desc">以前にエクスポートしたJSONファイルを読み込みます。現在のデータに追加されます（重複はスキップ）。</div>
+      <label class="backup-btn import-btn">
+        📤 JSONファイルを選択
+        <input type="file" accept=".json" id="importFile" style="display:none" onchange="importData(event)">
+      </label>
+    </div>
+
+    <div id="backupMsg" style="display:none;margin-top:4px;padding:12px;border-radius:8px;font-size:13px;text-align:center"></div>
+  </div>
+</div>
+<div class="modal-overlay" id="detailModal" onclick="if(event.target.id==='detailModal')closeDetail()">
+  <div class="modal" id="detailBody"></div>
+</div>
+
+<script>
+const COLORS = [
+  '#162840','#1a3058','#1e3870','#224088',
+  '#26489e','#2a50b4','#2e58c8','#3260dc'
+];
+
+let books = JSON.parse(localStorage.getItem('tsundoku') || '[]');
+let filter = 'all', view = 'shelf', editId = null;
+let tags = [], selSt = 'unread', selColor = COLORS[0];
+
+const $ = id => document.getElementById(id);
+const saveDB = () => localStorage.setItem('tsundoku', JSON.stringify(books));
+const hash = s => { let h=0; for(let c of s) h=Math.imul(31,h)+c.charCodeAt(0)|0; return Math.abs(h); };
+
+// ── RENDER ──
+function render() {
+  const q = $('searchInput').value.toLowerCase();
+  const filtered = books.filter(b => {
+    const mf = filter === 'all' || b.status === filter;
+    const ms = !q || b.title.toLowerCase().includes(q) || (b.author||'').toLowerCase().includes(q);
+    return mf && ms;
+  });
+
+  $('cAll').textContent = books.length;
+  $('cUnread').textContent = books.filter(b=>b.status==='unread').length;
+  $('cReading').textContent = books.filter(b=>b.status==='reading').length;
+  $('cDone').textContent = books.filter(b=>b.status==='done').length;
+
+  const c = $('shelfContainer');
+  if (view === 'stats') { renderStats(c); return; }
+  if (view === 'list')  { renderList(c, filtered); return; }
+
+  if (!filtered.length) {
+    c.innerHTML = `<div class="empty-state"><span class="icon">📖</span>本がまだありません。<br>右上の＋ボタンから追加できます。</div>`;
+    return;
+  }
+
+  const SIZE = 7;
+  let html = '';
+  for (let i = 0; i < filtered.length; i += SIZE) {
+    const row = filtered.slice(i, i + SIZE);
+    html += `<div class="shelf-wrap">
+      <div class="books-row">${row.map((b,j)=>spineHTML(b, i+j)).join('')}</div>
+      <div class="shelf-line"></div>
+    </div>`;
+  }
+  c.innerHTML = html;
+}
+
+function spineHTML(book, idx) {
+  const len = book.title.length;
+  const h = Math.max(len * 14 + 30, 80);
+  const w = 28 + hash(book.title) % 6;
+  const sc = book.status==='unread'?'var(--unread)':book.status==='reading'?'var(--reading)':'var(--done)';
+  return `<div class="book" style="width:${w}px;height:${h}px;background:${book.color};animation-delay:${(idx%7)*0.04}s" onclick="openDetail('${book.id}')">
+    <div class="book-inner">
+      <div class="book-title-spine">${book.title}</div>
+      <div class="book-status-mark" style="background:${sc}"></div>
+    </div>
+  </div>`;
+}
+
+function renderList(c, filtered) {
+  if (!filtered.length) { c.innerHTML = `<div class="empty-state"><span class="icon">☰</span>該当なし</div>`; return; }
+  c.innerHTML = `<div style="padding-bottom:80px">${filtered.map(b => {
+    const sc = b.status==='unread'?'var(--unread)':b.status==='reading'?'var(--reading)':'var(--done)';
+    const sl = b.status==='unread'?'積読中':b.status==='reading'?'読書中':'読了';
+    return `<div class="list-item" onclick="openDetail('${b.id}')">
+      <div class="list-thumb" style="background:${b.color}"></div>
+      <div class="list-info">
+        <div class="list-title">${b.title}</div>
+        <div class="list-author">${b.author||'著者不明'}</div>
+        <div class="list-meta">
+          <span class="status-pill" style="color:${sc};border-color:${sc}">${sl}</span>
+          ${b.genre?`<span style="font-size:10px;color:var(--muted)">${b.genre}</span>`:''}
+        </div>
+      </div>
+      <div class="list-arrow">›</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function renderStats(c) {
+  const total = books.length;
+  const un = books.filter(b=>b.status==='unread').length;
+  const re = books.filter(b=>b.status==='reading').length;
+  const dn = books.filter(b=>b.status==='done').length;
+  const gm = {};
+  books.forEach(b => { if(b.genre) gm[b.genre] = (gm[b.genre]||0)+1; });
+  const genres = Object.entries(gm).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const pct = total ? Math.round(dn/total*100) : 0;
+
+  c.innerHTML = `
+    <div style="padding-bottom:80px">
+      <div class="stats-grid">
+        ${[['総冊数',total,'var(--text)'],['積読中',un,'var(--unread)'],['読書中',re,'var(--reading)'],['読了',dn,'var(--done)']].map(([l,v,col])=>`
+          <div class="stat-card"><div class="stat-num" style="color:${col}">${v}</div><div class="stat-label">${l}</div></div>
+        `).join('')}
+      </div>
+      ${total?`<div class="progress-wrap">
+        <div class="progress-label">読了率</div>
+        <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
+        <div class="progress-pct">${pct}%</div>
+      </div>`:''}
+      ${genres.length?`<div class="genre-wrap">
+        <div class="progress-label">ジャンル内訳</div>
+        ${genres.map(([g,n])=>`
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <div style="font-size:12px;flex:1">${g}</div>
+            <div style="background:rgba(255,255,255,0.06);flex:2;border-radius:3px;height:4px;overflow:hidden">
+              <div style="height:100%;width:${Math.round(n/total*100)}%;background:var(--accent);border-radius:3px"></div>
+            </div>
+            <div style="font-size:11px;color:var(--muted);width:16px;text-align:right">${n}</div>
+          </div>`).join('')}
+      </div>`:''}
+    </div>`;
+}
+
+// ── FILTERS / VIEW ──
+function setFilter(f) {
+  filter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.f===f));
+  render();
+}
+function setView(v) {
+  view = v;
+  document.querySelectorAll('.nav-btn').forEach((b,i) => b.classList.toggle('active', ['shelf','list','stats','backup'][i]===v));
+  render();
+}
+
+// ── ADD MODAL ──
+function openAdd() {
+  editId = null;
+  $('addTitle').textContent = '本を追加';
+  $('saveBtn').textContent = '本棚に追加する';
+  $('fTitle').value=''; $('fAuthor').value=''; $('fGenre').value=''; $('fMemo').value=''; $('isbnIn').value='';
+  tags = []; selSt = 'unread';
+  selColor = COLORS[Math.floor(Math.random()*COLORS.length)];
+  renderSwatches(); renderTags(); updateStBtns();
+  $('addModal').classList.add('open');
+}
+function closeAdd() { $('addModal').classList.remove('open'); }
+
+function setSt(s) { selSt = s; updateStBtns(); }
+function updateStBtns() {
+  document.querySelectorAll('.s-btn').forEach(b => {
+    b.className = 's-btn';
+    if(b.dataset.s === selSt) b.classList.add('sel-'+selSt);
+  });
+}
+
+function renderSwatches() {
+  $('swatches').innerHTML = COLORS.map(c =>
+    `<div class="swatch${c===selColor?' sel':''}" style="background:${c}" onclick="pickColor('${c}')"></div>`
+  ).join('');
+}
+function pickColor(c) { selColor = c; renderSwatches(); }
+
+function addTag() {
+  const v = $('tagIn').value.trim();
+  if(v && !tags.includes(v)) { tags.push(v); renderTags(); }
+  $('tagIn').value = '';
+}
+function removeTag(t) { tags = tags.filter(x=>x!==t); renderTags(); }
+function renderTags() {
+  $('tagsList').innerHTML = tags.map(t =>
+    `<div class="tag-chip">${t}<button onclick="removeTag('${t}')">×</button></div>`
+  ).join('');
+}
+
+function save() {
+  const title = $('fTitle').value.trim();
+  if(!title) { alert('タイトルを入力してください'); return; }
+  const book = {
+    id: editId || Date.now().toString(),
+    title, author: $('fAuthor').value.trim(),
+    genre: $('fGenre').value, status: selSt, color: selColor,
+    tags: [...tags], memo: $('fMemo').value.trim(),
+    addedAt: editId ? (books.find(b=>b.id===editId)||{}).addedAt||Date.now() : Date.now(),
+    updatedAt: Date.now()
+  };
+  if(editId) { const i = books.findIndex(b=>b.id===editId); if(i>=0) books[i]=book; }
+  else books.unshift(book);
+  saveDB(); closeAdd(); render();
+}
+
+// ── DETAIL ──
+function openDetail(id) {
+  const book = books.find(b=>b.id===id); if(!book) return;
+  const sc = book.status==='unread'?'var(--unread)':book.status==='reading'?'var(--reading)':'var(--done)';
+  const sl = book.status==='unread'?'積読中':book.status==='reading'?'読書中':'読了';
+  const dt = new Date(book.addedAt).toLocaleDateString('ja-JP');
+
+  $('detailBody').innerHTML = `
+    <div class="drag-handle"></div>
+    <div class="detail-book-cover" style="background:${book.color}">
+      <div class="detail-cover-text">${book.title}</div>
+    </div>
+    <div class="detail-title">${book.title}</div>
+    <div class="detail-author">${book.author||'著者不明'}</div>
+    <div class="detail-status" style="color:${sc}">${sl}</div>
+    ${book.genre?`<div style="text-align:center;margin-bottom:12px;font-size:11px;color:var(--muted)">${book.genre}</div>`:''}
+    ${book.tags?.length?`<div class="tags-list" style="justify-content:center;margin-bottom:14px">${book.tags.map(t=>`<div class="tag-chip" style="cursor:default">${t}</div>`).join('')}</div>`:''}
+    ${book.memo?`<div class="detail-section"><div class="detail-section-label">メモ・感想</div><div class="detail-section-content">${book.memo.replace(/\n/g,'<br>')}</div></div>`:''}
+    <div class="detail-section"><div class="detail-section-label">登録日</div><div class="detail-section-content" style="font-size:13px">${dt}</div></div>
+    <div class="detail-btn-row">
+      <button class="detail-btn" onclick="editBook('${id}')">編集</button>
+      <button class="detail-btn danger" onclick="delBook('${id}')">削除</button>
+    </div>
+    <div class="status-change-row">
+      ${['unread','reading','done'].map(s=>{
+        const c=s==='unread'?'var(--unread)':s==='reading'?'var(--reading)':'var(--done)';
+        const l=s==='unread'?'積読中':s==='reading'?'読書中':'読了';
+        return `<button class="detail-btn" style="${book.status===s?`border-color:${c};color:${c}`:'opacity:0.45'}" onclick="changeSt('${id}','${s}')">${l}</button>`;
+      }).join('')}
+    </div>`;
+  $('detailModal').classList.add('open');
+}
+function closeDetail() { $('detailModal').classList.remove('open'); }
+
+function editBook(id) {
+  const b = books.find(x=>x.id===id); if(!b) return;
+  closeDetail(); editId = id;
+  $('addTitle').textContent = '本を編集';
+  $('saveBtn').textContent = '変更を保存する';
+  $('fTitle').value = b.title; $('fAuthor').value = b.author||'';
+  $('fGenre').value = b.genre||''; $('fMemo').value = b.memo||''; $('isbnIn').value='';
+  tags = [...(b.tags||[])]; selSt = b.status; selColor = b.color;
+  renderSwatches(); renderTags(); updateStBtns();
+  $('addModal').classList.add('open');
+}
+
+function delBook(id) {
+  if(!confirm('この本を削除しますか？')) return;
+  books = books.filter(b=>b.id!==id);
+  saveDB(); closeDetail(); render();
+}
+
+function changeSt(id, s) {
+  const b = books.find(x=>x.id===id); if(b) { b.status=s; saveDB(); }
+  closeDetail(); render();
+}
+
+// ── BACKUP ──
+function openBackup() { $('backupModal').classList.add('open'); }
+function closeBackup() { $('backupModal').classList.remove('open'); }
+
+function exportData() {
+  const payload = { version: 1, exportedAt: new Date().toISOString(), books };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const date = new Date().toISOString().slice(0,10);
+  a.href = url; a.download = `tsundoku_backup_${date}.json`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+function importData(e) {
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      const incoming = data.books || (Array.isArray(data) ? data : []);
+      if(!incoming.length) { showBackupMsg('データが見つかりませんでした', false); return; }
+      const existingIds = new Set(books.map(b=>b.id));
+      const newBooks = incoming.filter(b => b.id && b.title && !existingIds.has(b.id));
+      books = [...newBooks, ...books];
+      saveDB(); render();
+      showBackupMsg(`${newBooks.length}冊をインポートしました`, true);
+    } catch {
+      showBackupMsg('ファイルの読み込みに失敗しました', false);
+    }
+    e.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function showBackupMsg(msg, ok) {
+  const el = $('backupMsg');
+  el.textContent = msg;
+  el.style.display = 'block';
+  el.style.background = ok ? 'rgba(122,171,130,0.15)' : 'rgba(208,112,112,0.15)';
+  el.style.color = ok ? 'var(--reading)' : '#d07070';
+  el.style.border = `1px solid ${ok ? 'rgba(122,171,130,0.3)' : 'rgba(208,112,112,0.3)'}`;
+  setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
+
+async function fetchISBN() {
+  const v = $('isbnIn').value.trim(); if(!v) return;
+  let isbn = v.replace(/[-\s]/g,'');
+  const m = v.match(/\/([0-9]{10,13})(?:\/|$|\?)/);
+  if(m) isbn = m[1];
+  if(!/^[0-9]{10,13}$/.test(isbn)) { alert('有効なISBNを入力してください'); return; }
+  try {
+    const r = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+    const d = await r.json();
+    if(d.items?.length) {
+      const info = d.items[0].volumeInfo;
+      $('fTitle').value = info.title||'';
+      $('fAuthor').value = (info.authors||[]).join(', ');
+    } else alert('書籍情報が見つかりませんでした');
+  } catch { alert('取得に失敗しました'); }
+}
+
+// ── INIT ──
+// 青系統カラーかどうかチェックして、違えば差し替える
+const BLUE_HEX = new Set(COLORS);
+let migrated = false;
+books = books.map((b, i) => {
+  if (!BLUE_HEX.has(b.color)) {
+    migrated = true;
+    return { ...b, color: COLORS[i % COLORS.length] };
+  }
+  return b;
+});
+if (migrated) saveDB();
+
+if(!books.length) {
+  books = [
+    {title:'坊っちゃん',author:'夏目漱石',genre:'小説・文学',status:'done',color:'#2e58c8',tags:['古典'],memo:'爽快な名作'},
+    {title:'嫌われる勇気',author:'岸見一郎',genre:'自己啓発',status:'reading',color:'#26489e',tags:['アドラー'],memo:''},
+    {title:'ゼロ・トゥ・ワン',author:'ピーター・ティール',genre:'ビジネス',status:'unread',color:'#224088',tags:['スタートアップ'],memo:''},
+    {title:'銃・病原菌・鉄',author:'ジャレド・ダイアモンド',genre:'歴史・哲学',status:'unread',color:'#1a3058',tags:['歴史'],memo:''},
+    {title:'サピエンス全史',author:'ユヴァル・ノア・ハラリ',genre:'歴史・哲学',status:'unread',color:'#2a50b4',tags:['歴史','必読'],memo:''},
+    {title:'思考の整理学',author:'外山滋比古',genre:'自己啓発',status:'done',color:'#3260dc',tags:[],memo:''},
+    {title:'ノルウェイの森',author:'村上春樹',genre:'小説・文学',status:'unread',color:'#1e3870',tags:['村上春樹'],memo:''},
+    {title:'夜と霧',author:'V・E・フランクル',genre:'歴史・哲学',status:'done',color:'#2e58c8',tags:['心理学'],memo:''},
+    {title:'君たちはどう生きるか',author:'吉野源三郎',genre:'小説・文学',status:'reading',color:'#26489e',tags:['古典'],memo:''},
+    {title:'ハーミットの使命',author:'長谷川慶太郎',genre:'ビジネス',status:'unread',color:'#162840',tags:[],memo:''},
+    {title:'フェルマーの最終定理',author:'サイモン・シン',genre:'サイエンス',status:'done',color:'#224088',tags:['数学'],memo:''},
+    {title:'超訳ニーチェの言葉',author:'フリードリヒ・ニーチェ',genre:'歴史・哲学',status:'unread',color:'#1a3058',tags:['哲学'],memo:''},
+    {title:'マインドフルネス',author:'ジョン・カバットジン',genre:'自己啓発',status:'unread',color:'#2a50b4',tags:[],memo:''},
+    {title:'罪と罰',author:'ドストエフスキー',genre:'小説・文学',status:'unread',color:'#3260dc',tags:['ロシア文学'],memo:''},
+    {title:'FACTFULNESS',author:'ハンス・ロスリング',genre:'サイエンス',status:'done',color:'#1e3870',tags:['データ'],memo:''},
+    {title:'イシューからはじめよ',author:'安宅和人',genre:'ビジネス',status:'reading',color:'#2e58c8',tags:['思考法'],memo:''},
+    {title:'シオンの議定書',author:'作者不詳',genre:'歴史・哲学',status:'unread',color:'#26489e',tags:[],memo:''},
+    {title:'ストーリーとしての競争戦略',author:'楠木建',genre:'ビジネス',status:'unread',color:'#162840',tags:['戦略'],memo:''},
+    {title:'失われた時を求めて',author:'マルセル・プルースト',genre:'小説・文学',status:'unread',color:'#224088',tags:['長編'],memo:''},
+    {title:'ゲーデル・エッシャー・バッハ',author:'ダグラス・ホフスタッター',genre:'サイエンス',status:'unread',color:'#1a3058',tags:['数学'],memo:''},
+    {title:'道をひらく',author:'松下幸之助',genre:'自己啓発',status:'done',color:'#2a50b4',tags:[],memo:''},
+    {title:'三体',author:'劉慈欣',genre:'小説・文学',status:'reading',color:'#3260dc',tags:['SF'],memo:''},
+    {title:'ビジョナリーカンパニー',author:'ジム・コリンズ',genre:'ビジネス',status:'unread',color:'#1e3870',tags:['経営'],memo:''},
+    {title:'人間失格',author:'太宰治',genre:'小説・文学',status:'done',color:'#2e58c8',tags:['古典'],memo:''},
+    {title:'ブラックスワン',author:'ナシーム・タレブ',genre:'ビジネス',status:'unread',color:'#26489e',tags:['リスク'],memo:''},
+    {title:'ソクラテスの弁明',author:'プラトン',genre:'歴史・哲学',status:'unread',color:'#162840',tags:['哲学'],memo:''},
+    {title:'星の王子さま',author:'サン＝テグジュペリ',genre:'小説・文学',status:'done',color:'#224088',tags:['古典'],memo:''},
+    {title:'ハウ・トゥ・アート・シンキング',author:'秋元雄史',genre:'デザイン・アート',status:'unread',color:'#1a3058',tags:['アート'],memo:''},
+    {title:'ゼロ秒思考',author:'赤羽雄二',genre:'自己啓発',status:'reading',color:'#2a50b4',tags:['メモ'],memo:''},
+    {title:'百年の孤独',author:'G・ガルシア＝マルケス',genre:'小説・文学',status:'unread',color:'#3260dc',tags:['南米文学'],memo:''},
+  ].map((b,i)=>({...b,id:(Date.now()-i*1000).toString(),addedAt:Date.now()-i*86400000,updatedAt:Date.now()}));
+  saveDB();
+}
+
+render();
+</script>
+</body>
+</html>
